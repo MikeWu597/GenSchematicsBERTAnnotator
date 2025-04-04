@@ -148,6 +148,19 @@ input[type="range"] {
   flex-grow: 1;
 }
 
+/* Error message styling */
+.error-message {
+  background-color: #ffebee;
+  color: #c62828;
+  border-left: 4px solid #c62828;
+  padding: 15px;
+  margin-bottom: 20px;
+  border-radius: 0 4px 4px 0;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  font-size: 1rem;
+  line-height: 1.5;
+}
+
 @media (max-width: 768px) {
   .container {
     padding: 10px;
