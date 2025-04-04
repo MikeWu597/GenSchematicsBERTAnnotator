@@ -6,6 +6,14 @@ const nbt = require('prismarine-nbt');
 const zlib = require('zlib');
 const cors = require('cors');
 
+// Import format-specific parsers
+const { 
+  parseClassicSchematic, 
+  parseLitematicDimensions, 
+  parseLitematicBlocks, 
+  parseWorldEditSchematic 
+} = require('./parsers/schematic-parsers');
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -105,13 +113,6 @@ async function processSchematic(filePath) {
     throw new Error('Unsupported schematic format');
   }
 }
-
-// For now, stub out the parser functions
-// In a real implementation, these would be imported from a separate module
-function parseClassicSchematic(parsed) { return []; }
-function parseLitematicDimensions(parsed) { return { width: 0, height: 0, length: 0 }; }
-function parseLitematicBlocks(parsed) { return []; }
-function parseWorldEditSchematic(parsed) { return []; }
 
 // Start the server
 app.listen(PORT, () => {
