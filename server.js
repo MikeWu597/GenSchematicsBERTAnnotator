@@ -38,6 +38,7 @@ const upload = multer({ storage });
 app.post('/api/upload', upload.single('schematic'), async (req, res) => {
   try {
     const filePath = req.file.path;
+    console.log(`Processing file: ${filePath}`);
     
     // Process the schematic file
     const schematicData = await processSchematic(filePath);
@@ -49,6 +50,10 @@ app.post('/api/upload', upload.single('schematic'), async (req, res) => {
     if (!fs.existsSync('public/schematics')) {
       fs.mkdirSync('public/schematics', { recursive: true });
     }
+    
+    // Log some information about the processed schematic
+    console.log(`Schematic dimensions: ${schematicData.dimensions.width}x${schematicData.dimensions.height}x${schematicData.dimensions.length}`);
+    console.log(`Total blocks: ${schematicData.blocks.length}`);
     
     // Save processed data to a JSON file for retrieval
     fs.writeFileSync(
@@ -65,52 +70,91 @@ app.post('/api/upload', upload.single('schematic'), async (req, res) => {
     });
   } catch (error) {
     console.error('Error processing schematic:', error);
-    res.status(500).json({ success: false, message: 'Failed to process schematic' });
+    // Send more detailed error information
+    res.status(500).json({ 
+      success: false, 
+      message: `Failed to process schematic: ${error.message}`,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined 
+    });
   }
 });
 
 // Function to process different schematic formats
 async function processSchematic(filePath) {
-  const fileBuffer = fs.readFileSync(filePath);
-  const fileExt = path.extname(filePath).toLowerCase();
-  
-  if (fileExt === '.schematic') {
-    // Classic MCEdit schematic format
-    const { parsed } = await nbt.parse(fileBuffer);
+  try {
+    console.log(`Reading file: ${filePath}`);
+    const fileBuffer = fs.readFileSync(filePath);
+    const fileExt = path.extname(filePath).toLowerCase();
+    console.log(`File extension: ${fileExt}`);
     
-    return {
-      format: 'schematic',
-      dimensions: {
-        width: parsed.Width.value,
-        height: parsed.Height.value,
-        length: parsed.Length.value
-      },
-      blocks: parseClassicSchematic(parsed)
-    };
-  } else if (fileExt === '.nbt' || fileExt === '.litematic') {
-    // Litematica format
-    const { parsed } = await nbt.parse(fileBuffer);
+    let parsed;
     
-    return {
-      format: 'litematic',
-      dimensions: parseLitematicDimensions(parsed),
-      blocks: parseLitematicBlocks(parsed)
-    };
-  } else if (fileExt === '.schem') {
-    // WorldEdit schematic format
-    const { parsed } = await nbt.parse(zlib.gunzipSync(fileBuffer));
-    
-    return {
-      format: 'schem',
-      dimensions: {
-        width: parsed.Width.value,
-        height: parsed.Height.value,
-        length: parsed.Length.value
-      },
-      blocks: parseWorldEditSchematic(parsed)
-    };
-  } else {
-    throw new Error('Unsupported schematic format');
+    if (fileExt === '.schematic') {
+      // Classic MCEdit schematic format
+      console.log('Parsing as MCEdit schematic');
+      const parseResult = await nbt.parse(fileBuffer);
+      parsed = parseResult.parsed;
+      
+      console.log('NBT parsing successful');
+      
+      // Debug information
+      if (parsed.Width) console.log(`Width: ${parsed.Width.value}`);
+      if (parsed.Height) console.log(`Height: ${parsed.Height.value}`);
+      if (parsed.Length) console.log(`Length: ${parsed.Length.value}`);
+      if (parsed.Blocks) console.log(`Has blocks data: ${parsed.Blocks.value.length} blocks`);
+      
+      return {
+        format: 'schematic',
+        dimensions: {
+          width: parsed.Width.value,
+          height: parsed.Height.value,
+          length: parsed.Length.value
+        },
+        blocks: parseClassicSchematic(parsed)
+      };
+    } else if (fileExt === '.nbt' || fileExt === '.litematic') {
+      // Litematica format
+      console.log('Parsing as Litematica format');
+      const parseResult = await nbt.parse(fileBuffer);
+      parsed = parseResult.parsed;
+      
+      return {
+        format: 'litematic',
+        dimensions: parseLitematicDimensions(parsed),
+        blocks: parseLitematicBlocks(parsed)
+      };
+    } else if (fileExt === '.schem') {
+      // WorldEdit schematic format
+      console.log('Parsing as WorldEdit schem format');
+      // Some .schem files may be compressed with gzip
+      let dataBuffer;
+      try {
+        dataBuffer = zlib.gunzipSync(fileBuffer);
+        console.log('Decompressed with gzip');
+      } catch (e) {
+        // If decompression fails, try without it
+        console.log('Gzip decompression failed, trying direct parse');
+        dataBuffer = fileBuffer;
+      }
+      
+      const parseResult = await nbt.parse(dataBuffer);
+      parsed = parseResult.parsed;
+      
+      return {
+        format: 'schem',
+        dimensions: {
+          width: parsed.Width.value,
+          height: parsed.Height.value,
+          length: parsed.Length.value
+        },
+        blocks: parseWorldEditSchematic(parsed)
+      };
+    } else {
+      throw new Error(`Unsupported schematic format: ${fileExt}`);
+    }
+  } catch (error) {
+    console.error('Processing error:', error);
+    throw error; // Re-throw to be caught by the upload handler
   }
 }
 
