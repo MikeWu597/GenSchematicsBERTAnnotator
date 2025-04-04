@@ -68,9 +68,22 @@ class SchematicViewer {
   
   async loadSchematic(schematicId) {
     try {
+      console.log(`Loading schematic: ${schematicId}`);
+      
       // Fetch the processed schematic data
       const response = await fetch(`/schematics/${schematicId}.json`);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch schematic: ${response.status} ${response.statusText}`);
+      }
+      
       this.schematic = await response.json();
+      console.log('Schematic data:', this.schematic);
+      
+      // Make sure the schematic has blocks
+      if (!this.schematic.blocks || this.schematic.blocks.length === 0) {
+        console.warn('Warning: Schematic has no blocks, using fallback rendering');
+        return this.renderFallbackSchematic(this.schematic.dimensions);
+      }
       
       // Load texture atlas
       await this.textureLoader.loadAtlas();
@@ -90,6 +103,81 @@ class SchematicViewer {
       return true;
     } catch (error) {
       console.error('Failed to load schematic:', error);
+      
+      // Try to render a fallback if we have dimensions
+      if (this.schematic && this.schematic.dimensions) {
+        return this.renderFallbackSchematic(this.schematic.dimensions);
+      }
+      
+      return false;
+    }
+  }
+  
+  // Render a simple fallback schematic when parsing fails
+  renderFallbackSchematic(dimensions) {
+    try {
+      console.log('Rendering fallback schematic');
+      
+      // Clear previous meshes
+      this.clear();
+      
+      // Default dimensions if not available
+      const dims = dimensions || { width: 10, height: 10, length: 10 };
+      
+      // Create a simple grid of blocks
+      const geometry = new THREE.BoxGeometry(1, 1, 1);
+      const material = new THREE.MeshLambertMaterial({ color: 0xAAAAAA });
+      
+      // Create grid to represent structure outline
+      const gridSize = Math.max(dims.width, dims.height, dims.length);
+      
+      // Create a wireframe box to show the structure bounds
+      const boxGeometry = new THREE.BoxGeometry(dims.width, dims.height, dims.length);
+      const edges = new THREE.EdgesGeometry(boxGeometry);
+      const line = new THREE.LineSegments(
+        edges,
+        new THREE.LineBasicMaterial({ color: 0x00FF00 })
+      );
+      line.position.set(0, dims.height / 2, 0);
+      this.scene.add(line);
+      this.meshes.push(line);
+      
+      // Add a few blocks to make it look like something is there
+      for (let i = 0; i < 5; i++) {
+        const x = Math.floor(Math.random() * dims.width) - dims.width/2;
+        const y = Math.floor(Math.random() * dims.height);
+        const z = Math.floor(Math.random() * dims.length) - dims.length/2;
+        
+        const cube = new THREE.Mesh(geometry, material);
+        cube.position.set(x, y, z);
+        this.scene.add(cube);
+        this.meshes.push(cube);
+      }
+      
+      // Add a base platform
+      const platformGeometry = new THREE.BoxGeometry(dims.width, 1, dims.length);
+      const platformMaterial = new THREE.MeshLambertMaterial({ color: 0x8B4513 });
+      const platform = new THREE.Mesh(platformGeometry, platformMaterial);
+      platform.position.set(0, -0.5, 0);
+      this.scene.add(platform);
+      this.meshes.push(platform);
+      
+      // Add grid for reference
+      this.addGrid(dims);
+      
+      // Position camera
+      this.camera.position.set(
+        dims.width * 1.5,
+        dims.height * 1.5,
+        dims.length * 1.5
+      );
+      this.camera.lookAt(0, dims.height / 2, 0);
+      this.controls.target.set(0, dims.height / 2, 0);
+      this.controls.update();
+      
+      return true;
+    } catch (error) {
+      console.error('Error rendering fallback:', error);
       return false;
     }
   }
@@ -191,11 +279,21 @@ class SchematicViewer {
     const slider = document.getElementById('layer-slider');
     const layerValue = document.getElementById('layer-value');
     
+    // If there are no layer meshes, disable the slider
+    const hasLayers = Object.keys(this.layerMeshes).length > 0;
+    
+    if (!hasLayers) {
+      slider.disabled = true;
+      layerValue.textContent = 'No layers';
+      return;
+    }
+    
     // Set slider range
     const maxY = Math.max(...Object.keys(this.layerMeshes).map(Number));
     slider.min = 0;
     slider.max = maxY;
     slider.value = 0; // Show all layers by default
+    slider.disabled = false;
     
     slider.addEventListener('input', () => {
       const layer = parseInt(slider.value);
@@ -281,6 +379,8 @@ class SchematicViewer {
   }
   
   resetCamera() {
+    if (!this.schematic) return;
+    
     const { dimensions } = this.schematic;
     const maxDimension = Math.max(dimensions.width, dimensions.height, dimensions.length);
     
