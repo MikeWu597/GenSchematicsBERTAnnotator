@@ -47,6 +47,32 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
   
+  // Function to display error message
+  function showError(message) {
+    // Create or update error element
+    let errorElement = document.getElementById('error-message');
+    if (!errorElement) {
+      errorElement = document.createElement('div');
+      errorElement.id = 'error-message';
+      errorElement.className = 'error-message';
+      viewerContainer.insertBefore(errorElement, viewerContainer.firstChild);
+    }
+    
+    errorElement.textContent = message;
+    errorElement.style.display = 'block';
+    
+    // Hide loading indicator
+    loadingIndicator.style.display = 'none';
+  }
+  
+  // Function to clear error message
+  function clearError() {
+    const errorElement = document.getElementById('error-message');
+    if (errorElement) {
+      errorElement.style.display = 'none';
+    }
+  }
+  
   // Handle form submission
   uploadForm.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -55,15 +81,30 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
     
+    // Clear any previous errors
+    clearError();
+    
     // Show loading indicator
     viewerContainer.classList.remove('hidden');
     loadingIndicator.style.display = 'block';
     
+    // Validate file type
+    const file = fileInput.files[0];
+    const fileExt = file.name.split('.').pop().toLowerCase();
+    const supportedFormats = ['schematic', 'schem', 'nbt', 'litematic'];
+    
+    if (!supportedFormats.includes(fileExt)) {
+      showError(`Unsupported file format: .${fileExt}. Supported formats are: .schematic, .schem, .nbt, and .litematic`);
+      return;
+    }
+    
     // Create form data
     const formData = new FormData();
-    formData.append('schematic', fileInput.files[0]);
+    formData.append('schematic', file);
     
     try {
+      console.log('Uploading file...');
+      
       // Upload the file
       const response = await fetch('/api/upload', {
         method: 'POST',
@@ -71,27 +112,38 @@ document.addEventListener('DOMContentLoaded', () => {
       });
       
       const data = await response.json();
+      console.log('Server response:', data);
       
       if (data.success) {
+        // Clear any previous errors
+        clearError();
+        
         // Display schematic info
         schematicInfo.innerHTML = `
           <p>Dimensions: ${data.dimensions.width}x${data.dimensions.height}x${data.dimensions.length}</p>
           <p>Format: ${data.format}</p>
         `;
         
-        // Load the schematic
-        await viewer.loadSchematic(data.schematicId);
-        
-        // Hide loading indicator
-        loadingIndicator.style.display = 'none';
+        try {
+          // Load the schematic
+          const loadSuccess = await viewer.loadSchematic(data.schematicId);
+          
+          if (!loadSuccess) {
+            showError('Failed to render schematic. The file may be corrupted or in an unsupported format.');
+          } else {
+            // Hide loading indicator
+            loadingIndicator.style.display = 'none';
+          }
+        } catch (renderError) {
+          console.error('Rendering error:', renderError);
+          showError(`Error rendering schematic: ${renderError.message}`);
+        }
       } else {
-        alert('Failed to process schematic: ' + data.message);
-        loadingIndicator.style.display = 'none';
+        showError(data.message || 'Failed to process schematic. The file may be corrupted or in an unsupported format.');
       }
     } catch (error) {
       console.error('Error uploading schematic:', error);
-      alert('Failed to upload schematic. Please try again.');
-      loadingIndicator.style.display = 'none';
+      showError(`Upload failed: ${error.message}. Please check your connection and try again.`);
     }
   });
   
