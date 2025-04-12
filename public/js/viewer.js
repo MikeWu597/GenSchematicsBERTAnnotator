@@ -9,6 +9,8 @@ class SchematicViewer {
     this.wireframeMode = false;
     this.texturesEnabled = true;
     this.textureLoader = new MinecraftTextureLoader();
+    this.isLoading = false;
+    this.loadingProgress = 0;
     
     this.init();
   }
@@ -47,11 +49,48 @@ class SchematicViewer {
     directionalLight.position.set(1, 1, 1);
     this.scene.add(directionalLight);
     
+    // Loading indicator within the 3D scene
+    this.createLoadingIndicator();
+    
     // Handle window resize
     window.addEventListener('resize', () => this.onWindowResize());
     
     // Animation loop
     this.animate();
+  }
+  
+  createLoadingIndicator() {
+    // Create a loading indicator in 3D space
+    this.loadingText = document.createElement('div');
+    this.loadingText.style.position = 'absolute';
+    this.loadingText.style.top = '50%';
+    this.loadingText.style.left = '50%';
+    this.loadingText.style.transform = 'translate(-50%, -50%)';
+    this.loadingText.style.color = 'white';
+    this.loadingText.style.backgroundColor = 'rgba(0,0,0,0.7)';
+    this.loadingText.style.padding = '10px 20px';
+    this.loadingText.style.borderRadius = '5px';
+    this.loadingText.style.fontFamily = 'Arial, sans-serif';
+    this.loadingText.style.display = 'none';
+    this.loadingText.style.zIndex = '1000';
+    this.loadingText.textContent = 'Processing blocks... 0%';
+    
+    this.container.appendChild(this.loadingText);
+  }
+  
+  updateLoadingIndicator(progress, message = null) {
+    if (!this.loadingText) return;
+    
+    const percent = Math.floor(progress * 100);
+    this.loadingText.textContent = message || `Processing blocks... ${percent}%`;
+    
+    if (progress >= 1) {
+      setTimeout(() => {
+        this.loadingText.style.display = 'none';
+      }, 500);
+    } else {
+      this.loadingText.style.display = 'block';
+    }
   }
   
   onWindowResize() {
@@ -69,6 +108,8 @@ class SchematicViewer {
   async loadSchematic(schematicId) {
     try {
       console.log(`Loading schematic: ${schematicId}`);
+      this.isLoading = true;
+      this.updateLoadingIndicator(0, 'Fetching schematic data...');
       
       // Fetch the processed schematic data
       const response = await fetch(`/schematics/${schematicId}.json`);
@@ -85,14 +126,16 @@ class SchematicViewer {
         return this.renderFallbackSchematic(this.schematic.dimensions);
       }
       
+      this.updateLoadingIndicator(0.1, 'Loading textures...');
+      
       // Load texture atlas and preload common textures
       await this.textureLoader.loadAtlas();
-      this.preloadCommonTextures(); // Start loading in background
       
       // Clear previous schematic
       this.clear();
       
       // Render the schematic
+      this.updateLoadingIndicator(0.2, `Processing ${this.schematic.blocks.length} blocks...`);
       await this.renderSchematic();
       
       // Set up layer controls
@@ -101,9 +144,20 @@ class SchematicViewer {
       // Position camera
       this.resetCamera();
       
+      this.isLoading = false;
+      this.updateLoadingIndicator(1, 'Completed!');
+      
+      // Make sure we have something visible
+      if (this.meshes.length === 0) {
+        console.warn('No meshes were created, using fallback');
+        return this.renderFallbackSchematic(this.schematic.dimensions);
+      }
+      
       return true;
     } catch (error) {
       console.error('Failed to load schematic:', error);
+      this.isLoading = false;
+      this.updateLoadingIndicator(1, 'Error: ' + error.message);
       
       // Try to render a fallback if we have dimensions
       if (this.schematic && this.schematic.dimensions) {
@@ -129,9 +183,6 @@ class SchematicViewer {
       const geometry = new THREE.BoxGeometry(1, 1, 1);
       const material = new THREE.MeshLambertMaterial({ color: 0xAAAAAA });
       
-      // Create grid to represent structure outline
-      const gridSize = Math.max(dims.width, dims.height, dims.length);
-      
       // Create a wireframe box to show the structure bounds
       const boxGeometry = new THREE.BoxGeometry(dims.width, dims.height, dims.length);
       const edges = new THREE.EdgesGeometry(boxGeometry);
@@ -139,17 +190,23 @@ class SchematicViewer {
         edges,
         new THREE.LineBasicMaterial({ color: 0x00FF00 })
       );
-      line.position.set(0, dims.height / 2, 0);
+      line.position.set(dims.width/2 - dims.width/2, dims.height/2, dims.length/2 - dims.length/2);
       this.scene.add(line);
       this.meshes.push(line);
       
-      // Add a few blocks to make it look like something is there
-      for (let i = 0; i < 5; i++) {
+      // Add more blocks to make it look like something is there
+      const blockColors = [0xff0000, 0x00ff00, 0x0000ff, 0xffff00, 0xff00ff, 0x00ffff];
+      
+      for (let i = 0; i < 20; i++) {
         const x = Math.floor(Math.random() * dims.width) - dims.width/2;
         const y = Math.floor(Math.random() * dims.height);
         const z = Math.floor(Math.random() * dims.length) - dims.length/2;
         
-        const cube = new THREE.Mesh(geometry, material);
+        const coloredMaterial = new THREE.MeshLambertMaterial({ 
+          color: blockColors[i % blockColors.length] 
+        });
+        
+        const cube = new THREE.Mesh(geometry, coloredMaterial);
         cube.position.set(x, y, z);
         this.scene.add(cube);
         this.meshes.push(cube);
@@ -166,11 +223,12 @@ class SchematicViewer {
       // Add grid for reference
       this.addGrid(dims);
       
-      // Position camera
+      // Position camera to show the fallback structure
+      const maxDim = Math.max(dims.width, dims.height, dims.length);
       this.camera.position.set(
-        dims.width * 1.5,
-        dims.height * 1.5,
-        dims.length * 1.5
+        maxDim * 0.8,
+        maxDim * 0.8,
+        maxDim * 0.8
       );
       this.camera.lookAt(0, dims.height / 2, 0);
       this.controls.target.set(0, dims.height / 2, 0);
@@ -184,103 +242,148 @@ class SchematicViewer {
   }
   
   async renderSchematic() {
-    const { blocks, dimensions } = this.schematic;
-    
-    // Group blocks by type for instanced rendering
-    const blockTypes = _.groupBy(blocks, 'id');
-    
-    // For each block type, create an instanced mesh
-    for (const [blockId, blockInstances] of Object.entries(blockTypes)) {
-      // Skip air blocks
-      if (blockId === 'minecraft:air') continue;
+    try {
+      const { blocks, dimensions } = this.schematic;
       
-      try {
-        // Create geometry
-        const geometry = new THREE.BoxGeometry(1, 1, 1);
+      console.log(`Rendering ${blocks.length} blocks with dimensions: ${dimensions.width}x${dimensions.height}x${dimensions.length}`);
+      
+      // Group blocks by type for instanced rendering
+      const blockTypes = _.groupBy(blocks, 'id');
+      
+      let processedTypes = 0;
+      const totalTypes = Object.keys(blockTypes).length;
+      
+      // For each block type, create an instanced mesh
+      for (const [blockId, blockInstances] of Object.entries(blockTypes)) {
+        // Skip air blocks
+        if (blockId === 'minecraft:air' || blockId.includes('air')) continue;
         
-        // Get or create material
-        let material;
-        if (this.texturesEnabled) {
-          // Set whether to use fallback colors based on texturesEnabled
-          this.textureLoader.setUseFallbackColors(!this.texturesEnabled);
-          // Try to get the texture for this block type
-          material = await this.textureLoader.getBlockMaterial(blockId);
-        } else {
-          // Fallback to colored material
-          material = this.textureLoader.createMaterialsFromColor(blockId);
-        }
-        
-        // Handle array of materials (for different faces)
-        let instancedMesh;
-        if (Array.isArray(material)) {
-          // For multiple materials, we need separate meshes for each face
-          // Create a merged geometry for all faces
-          const mergedGeometry = new THREE.BoxGeometry(1, 1, 1);
-          const mergedMaterial = material[0]; // Use first material for instanced rendering
+        try {
+          // Update loading progress
+          processedTypes++;
+          this.updateLoadingIndicator(
+            0.2 + (0.8 * processedTypes / totalTypes), 
+            `Processing ${blockId} (${processedTypes}/${totalTypes})`
+          );
           
-          instancedMesh = new THREE.InstancedMesh(
-            mergedGeometry,
-            mergedMaterial,
-            blockInstances.length
-          );
-        } else {
-          // Single material for all faces
-          instancedMesh = new THREE.InstancedMesh(
-            geometry,
-            material,
-            blockInstances.length
-          );
-        }
-        
-        // Set transforms for each instance
-        const matrix = new THREE.Matrix4();
-        blockInstances.forEach((block, index) => {
-          matrix.setPosition(
-            block.x - dimensions.width / 2,
-            block.y,
-            block.z - dimensions.length / 2
-          );
-          instancedMesh.setMatrixAt(index, matrix);
-        });
-        
-        // Add to scene
-        this.scene.add(instancedMesh);
-        this.meshes.push(instancedMesh);
-        
-        // Track y-position for layer view
-        const blocksByLayer = _.groupBy(blockInstances, 'y');
-        for (const [y, layerBlocks] of Object.entries(blocksByLayer)) {
-          if (!this.layerMeshes[y]) {
-            this.layerMeshes[y] = [];
+          // Create geometry
+          const geometry = new THREE.BoxGeometry(1, 1, 1);
+          
+          // Get or create material
+          let material;
+          if (this.texturesEnabled) {
+            // Set whether to use fallback colors based on texturesEnabled
+            this.textureLoader.setUseFallbackColors(!this.texturesEnabled);
+            // Try to get the texture for this block type
+            material = await this.textureLoader.getBlockMaterial(blockId);
+          } else {
+            // Fallback to colored material
+            material = this.textureLoader.createMaterialsFromColor(blockId);
           }
           
-          // Create a mesh for this layer using the same material
-          const layerMesh = new THREE.InstancedMesh(
-            geometry,
-            Array.isArray(material) ? material[0] : material,
-            layerBlocks.length
-          );
-          
-          // Set transforms
-          layerBlocks.forEach((block, index) => {
-            matrix.setPosition(
-              block.x - dimensions.width / 2,
-              block.y,
-              block.z - dimensions.length / 2
+          // Handle array of materials (for different faces)
+          let instancedMesh;
+          if (Array.isArray(material)) {
+            // For multiple materials, we need separate meshes for each face
+            // Create a merged geometry for all faces
+            const mergedGeometry = new THREE.BoxGeometry(1, 1, 1);
+            const mergedMaterial = material[0]; // Use first material for instanced rendering
+            
+            instancedMesh = new THREE.InstancedMesh(
+              mergedGeometry,
+              mergedMaterial,
+              blockInstances.length
             );
-            layerMesh.setMatrixAt(index, matrix);
+          } else {
+            // Single material for all faces
+            instancedMesh = new THREE.InstancedMesh(
+              geometry,
+              material,
+              blockInstances.length
+            );
+          }
+          
+          // Set transforms for each instance
+          const matrix = new THREE.Matrix4();
+          blockInstances.forEach((block, index) => {
+            // Adjusted position calculation
+            const xOffset = -dimensions.width / 2;  // Center the model on x-axis
+            const zOffset = -dimensions.length / 2; // Center the model on z-axis
+            
+            matrix.setPosition(
+              block.x + xOffset,
+              block.y,
+              block.z + zOffset
+            );
+            instancedMesh.setMatrixAt(index, matrix);
           });
           
-          // Don't add to scene yet - will be added when layer is selected
-          this.layerMeshes[y].push(layerMesh);
+          // Update matrix to make the changes visible
+          instancedMesh.instanceMatrix.needsUpdate = true;
+          
+          // Add to scene
+          this.scene.add(instancedMesh);
+          this.meshes.push(instancedMesh);
+          
+          // Track y-position for layer view
+          const blocksByLayer = _.groupBy(blockInstances, 'y');
+          for (const [y, layerBlocks] of Object.entries(blocksByLayer)) {
+            if (!this.layerMeshes[y]) {
+              this.layerMeshes[y] = [];
+            }
+            
+            // Create a mesh for this layer using the same material
+            const layerMesh = new THREE.InstancedMesh(
+              geometry,
+              Array.isArray(material) ? material[0] : material,
+              layerBlocks.length
+            );
+            
+            // Set transforms
+            layerBlocks.forEach((block, index) => {
+              const xOffset = -dimensions.width / 2;
+              const zOffset = -dimensions.length / 2;
+              
+              matrix.setPosition(
+                block.x + xOffset,
+                block.y,
+                block.z + zOffset
+              );
+              layerMesh.setMatrixAt(index, matrix);
+            });
+            
+            // Don't add to scene yet - will be added when layer is selected
+            this.layerMeshes[y].push(layerMesh);
+          }
+        } catch (error) {
+          console.error(`Failed to render block type ${blockId}:`, error);
         }
-      } catch (error) {
-        console.error(`Failed to render block type ${blockId}:`, error);
       }
+      
+      // Create a bounding box to show the structure bounds
+      const boxGeometry = new THREE.BoxGeometry(dimensions.width, dimensions.height, dimensions.length);
+      const edges = new THREE.EdgesGeometry(boxGeometry);
+      const line = new THREE.LineSegments(
+        edges,
+        new THREE.LineBasicMaterial({ color: 0x00FF00, opacity: 0.5, transparent: true })
+      );
+      this.scene.add(line);
+      this.meshes.push(line);
+      
+      // Add grid for reference
+      this.addGrid(dimensions);
+      
+      // If we didn't create any meshes, show fallback
+      if (this.meshes.length === 0) {
+        console.warn('No meshes were created during rendering');
+        return this.renderFallbackSchematic(dimensions);
+      }
+      
+      return true;
+    } catch (error) {
+      console.error('Error in renderSchematic:', error);
+      return this.renderFallbackSchematic(this.schematic.dimensions);
     }
-    
-    // Add grid for reference
-    this.addGrid(dimensions);
   }
   
   // Preload common textures for better performance
@@ -309,10 +412,8 @@ class SchematicViewer {
   }
   
   addGrid(dimensions) {
-    const gridHelper = new THREE.GridHelper(
-      Math.max(dimensions.width, dimensions.length),
-      Math.max(dimensions.width, dimensions.length)
-    );
+    const gridSize = Math.max(dimensions.width, dimensions.length);
+    const gridHelper = new THREE.GridHelper(gridSize, gridSize);
     gridHelper.position.y = -0.5;
     this.scene.add(gridHelper);
     this.meshes.push(gridHelper);
@@ -321,6 +422,11 @@ class SchematicViewer {
   setupLayerControls() {
     const slider = document.getElementById('layer-slider');
     const layerValue = document.getElementById('layer-value');
+    
+    if (!slider || !layerValue) {
+      console.warn('Layer controls not found in the document');
+      return;
+    }
     
     // If there are no layer meshes, disable the slider
     const hasLayers = Object.keys(this.layerMeshes).length > 0;
