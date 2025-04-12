@@ -11,6 +11,7 @@ This document provides a comprehensive overview of the Minecraft Schematic Viewe
 5. [Frontend Implementation](#frontend-implementation)
 6. [Performance Optimizations](#performance-optimizations)
 7. [Extending the System](#extending-the-system)
+8. [Litematica Support](#litematica-support)
 
 ## Project Overview
 
@@ -44,7 +45,9 @@ minecraft-schematic-viewer/
 ├── server.js                 # Main server file
 ├── package.json              # Project dependencies
 ├── parsers/                  # Schematic format parsers
-│   └── schematic-parsers.js  # Parser implementations
+│   ├── schematic-parsers.js  # Parser implementations for classic formats
+│   └── litematica-parser.js  # Specialized parser for litematica files
+├── test-litematica.js        # Test script for litematica format
 ├── public/                   # Static files served by Express
 │   ├── index.html            # Main HTML page
 │   ├── css/                  # CSS styles
@@ -74,10 +77,20 @@ The server is built using Express.js and provides:
 The parsers module exports functions for handling different schematic formats:
 
 - `parseClassicSchematic`: Handles MCEdit format (.schematic)
-- `parseLitematicBlocks`: Handles Litematica format
 - `parseWorldEditSchematic`: Handles WorldEdit format (.schem)
 
 Each parser extracts block data, converts legacy block IDs to modern Minecraft identifiers, and generates a standardized block array for the frontend.
+
+### Litematica Parser (parsers/litematica-parser.js)
+
+A specialized parser for handling Litematica (.litematic, .nbt) files:
+
+- `parseLitematicFile`: Main function to parse litematica files
+- `extractDimensions`: Gets dimensions from different possible NBT structures
+- `extractBlocks`: Extracts block data from regions
+- `logNbtStructure`: Helper for debugging NBT structure
+
+The litematica parser includes robust error handling and fallbacks to ensure that something is always rendered, even if the exact format isn't recognized.
 
 ## Frontend Implementation
 
@@ -147,7 +160,7 @@ To add support for new block types:
 
 To support a new schematic format:
 
-1. Add a new parser function in `schematic-parsers.js`
+1. Add a new parser function in `schematic-parsers.js` or create a specialized parser
 2. Update the `processSchematic()` function in `server.js` to use the new parser
 3. Add file extension handling in the upload form
 
@@ -159,3 +172,50 @@ For larger schematics, consider implementing:
 2. **Level of Detail (LOD)**: Render distant parts of the model with less detail
 3. **Occlusion Culling**: Skip rendering blocks that are completely surrounded by other blocks
 4. **WebWorkers**: Offload heavy computations to background threads
+
+## Litematica Support
+
+The viewer now includes comprehensive support for Litematica (.litematic) files, used by the popular Litematica mod for Minecraft.
+
+### Litematica Format Structure
+
+Litematica files use an NBT structure with these key components:
+
+- **Metadata**: Contains information like schematic name, author, dimensions
+- **Regions**: Contains block data for different regions of the structure
+  - **BlockStatePalette**: List of block types used in the schematic
+  - **BlockStates**: Compact array of indices into the palette
+
+### Parsing Process
+
+The litematica parser follows these steps:
+
+1. Reads the file and parses the NBT structure
+2. Extracts dimensions from various possible locations in the structure
+3. Identifies and processes regions
+4. Extracts block data using bit-packing algorithms
+5. Creates a standardized block array for the viewer
+
+### Testing Litematica Files
+
+A test script is included to help debug issues with litematica files:
+
+```bash
+node test-litematica.js path/to/your/file.litematic
+```
+
+This script:
+- Attempts to parse the litematica file
+- Outputs dimensions and block counts
+- Shows sample blocks
+- Dumps the NBT structure for analysis
+- Saves a detailed analysis file for further debugging
+
+### Troubleshooting Litematica Files
+
+If you encounter issues with a litematica file:
+
+1. Run the test script to analyze the file structure
+2. Check the NBT analysis output for the exact structure
+3. Verify that the file was created with a compatible version of Litematica
+4. For very large structures, be patient during loading as parsing can take time
