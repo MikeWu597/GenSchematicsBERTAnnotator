@@ -9,10 +9,11 @@ const cors = require('cors');
 // Import format-specific parsers
 const { 
   parseClassicSchematic, 
-  parseLitematicDimensions, 
-  parseLitematicBlocks, 
   parseWorldEditSchematic 
 } = require('./parsers/schematic-parsers');
+
+// Import specialized litematica parser
+const { parseLitematicFile } = require('./parsers/litematica-parser');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -113,15 +114,16 @@ async function processSchematic(filePath) {
         blocks: parseClassicSchematic(parsed)
       };
     } else if (fileExt === '.nbt' || fileExt === '.litematic') {
-      // Litematica format
+      // Litematica format - use specialized parser
       console.log('Parsing as Litematica format');
-      const parseResult = await nbt.parse(fileBuffer);
-      parsed = parseResult.parsed;
+      
+      // Use the specialized litematica parser
+      const { dimensions, blocks } = await parseLitematicFile(filePath);
       
       return {
         format: 'litematic',
-        dimensions: parseLitematicDimensions(parsed),
-        blocks: parseLitematicBlocks(parsed)
+        dimensions,
+        blocks
       };
     } else if (fileExt === '.schem') {
       // WorldEdit schematic format
