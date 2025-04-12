@@ -87,6 +87,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Show loading indicator
     viewerContainer.classList.remove('hidden');
     loadingIndicator.style.display = 'block';
+    loadingIndicator.textContent = 'Uploading schematic...';
     
     // Validate file type
     const file = fileInput.files[0];
@@ -104,6 +105,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
     try {
       console.log('Uploading file...');
+      const startTime = performance.now();
       
       // Upload the file
       const response = await fetch('/api/upload', {
@@ -113,6 +115,9 @@ document.addEventListener('DOMContentLoaded', () => {
       
       const data = await response.json();
       console.log('Server response:', data);
+      
+      const uploadTime = ((performance.now() - startTime) / 1000).toFixed(2);
+      console.log(`Upload and processing took ${uploadTime} seconds`);
       
       if (data.success) {
         // Clear any previous errors
@@ -124,16 +129,31 @@ document.addEventListener('DOMContentLoaded', () => {
           <p>Format: ${data.format}</p>
         `;
         
+        // Update loading indicator
+        loadingIndicator.textContent = 'Rendering schematic...';
+        
         try {
-          // Load the schematic
-          const loadSuccess = await viewer.loadSchematic(data.schematicId);
-          
-          if (!loadSuccess) {
-            showError('Failed to render schematic. The file may be corrupted or in an unsupported format.');
-          } else {
-            // Hide loading indicator
-            loadingIndicator.style.display = 'none';
-          }
+          // Wait a brief moment to ensure the UI updates
+          setTimeout(async () => {
+            // Load the schematic
+            const loadSuccess = await viewer.loadSchematic(data.schematicId);
+            
+            if (!loadSuccess) {
+              showError('Failed to render schematic. The file may be corrupted or in an unsupported format.');
+            } else {
+              // Hide loading indicator
+              loadingIndicator.style.display = 'none';
+              
+              // Display total time
+              const totalTime = ((performance.now() - startTime) / 1000).toFixed(2);
+              console.log(`Total processing time: ${totalTime} seconds`);
+              const timeInfo = document.createElement('p');
+              timeInfo.textContent = `Processing time: ${totalTime}s`;
+              timeInfo.style.fontSize = '0.8em';
+              timeInfo.style.opacity = '0.7';
+              schematicInfo.appendChild(timeInfo);
+            }
+          }, 100);
         } catch (renderError) {
           console.error('Rendering error:', renderError);
           showError(`Error rendering schematic: ${renderError.message}`);
@@ -159,4 +179,25 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('toggle-textures').addEventListener('click', () => {
     viewer.toggleTextures();
   });
+  
+  // Function to toggle fullscreen
+  function toggleFullscreen() {
+    if (document.fullscreenElement) {
+      document.exitFullscreen();
+    } else {
+      viewerContainer.requestFullscreen().catch(err => {
+        console.error(`Error attempting to enable fullscreen: ${err.message}`);
+      });
+    }
+  }
+  
+  // Add fullscreen button if browser supports it
+  if (document.fullscreenEnabled) {
+    const controlGroup = document.querySelector('.control-group');
+    const fullscreenButton = document.createElement('button');
+    fullscreenButton.id = 'toggle-fullscreen';
+    fullscreenButton.textContent = 'Fullscreen';
+    fullscreenButton.addEventListener('click', toggleFullscreen);
+    controlGroup.appendChild(fullscreenButton);
+  }
 });
