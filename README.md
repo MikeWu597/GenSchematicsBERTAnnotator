@@ -10,6 +10,7 @@ A web-based 3D viewer for Minecraft schematics with optimized rendering for larg
 - Texture support with fallbacks
 - Optimized rendering for large structures
 - Robust error handling with fallback rendering
+- **NEW**: Enhanced Litematica (.litematic) support with specialized parser
 
 ## Installation
 
@@ -31,6 +32,20 @@ npm start
 - **MCEdit format (.schematic)** - Classic schematic format, widely compatible
 - **WorldEdit format (.schem)** - Modern format supporting newer block types
 - **Litematica format (.litematic/.nbt)** - Used by the Litematica mod
+
+## Litematica Support
+
+This viewer now includes enhanced support for Litematica (.litematic) files with:
+
+- Specialized parsing logic that handles various Litematica format variants
+- Robust error recovery for better compatibility with different Litematica versions
+- Debugging tools to analyze problematic litematica files
+
+To test a specific litematica file without using the web interface:
+
+```bash
+node test-litematica.js path/to/your/file.litematic
+```
 
 ## Controls
 
@@ -58,6 +73,15 @@ If you encounter issues with parsing schematic files:
 2. **File corruption**: If you see error messages about missing data, the file might be corrupted
 3. **Complex schematics**: Very large or complex schematics might take longer to process
 4. **Console errors**: Check your browser's console for specific error messages
+5. **Litematica issues**: For litematica files, use the included test script for detailed debugging
+
+### Debugging Litematica Files
+
+For litematica files that don't parse correctly:
+
+1. Run `node test-litematica.js your-file.litematic` to generate an analysis file
+2. Check the console output for parsing errors and NBT structure information
+3. Examine the generated `*_nbt_analysis.json` file to understand the file structure
 
 ## Browser Compatibility
 
