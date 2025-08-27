@@ -1,51 +1,18 @@
 document.addEventListener('DOMContentLoaded', () => {
-  const uploadForm = document.getElementById('upload-form');
-  const fileInput = document.getElementById('file-input');
-  const dropArea = document.getElementById('drop-area');
-  const uploadButton = document.getElementById('upload-button');
   const viewerContainer = document.getElementById('viewer-container');
   const loadingIndicator = document.getElementById('loading-indicator');
   const schematicInfo = document.getElementById('schematic-info');
+  const annotationSection = document.getElementById('annotation-section');
+  const currentSchematicName = document.getElementById('current-schematic-name');
+  const annotationText = document.getElementById('annotation-text');
+  const saveAnnotationButton = document.getElementById('save-annotation');
   
   let viewer;
+  let queue = [];
+  let currentSchematic = null;
   
   // Initialize the viewer
   viewer = new SchematicViewer('renderer-container');
-  
-  // Set up file selection
-  fileInput.addEventListener('change', () => {
-    if (fileInput.files.length > 0) {
-      dropArea.classList.add('has-file');
-      dropArea.querySelector('p').textContent = fileInput.files[0].name;
-      uploadButton.disabled = false;
-    } else {
-      dropArea.classList.remove('has-file');
-      dropArea.querySelector('p').textContent = 'Drag & drop your schematic file here';
-      uploadButton.disabled = true;
-    }
-  });
-  
-  // Set up drag and drop
-  dropArea.addEventListener('dragover', (e) => {
-    e.preventDefault();
-    dropArea.classList.add('drag-over');
-  });
-  
-  dropArea.addEventListener('dragleave', () => {
-    dropArea.classList.remove('drag-over');
-  });
-  
-  dropArea.addEventListener('drop', (e) => {
-    e.preventDefault();
-    dropArea.classList.remove('drag-over');
-    
-    if (e.dataTransfer.files.length > 0) {
-      fileInput.files = e.dataTransfer.files;
-      dropArea.classList.add('has-file');
-      dropArea.querySelector('p').textContent = e.dataTransfer.files[0].name;
-      uploadButton.disabled = false;
-    }
-  });
   
   // Function to display error message
   function showError(message) {
@@ -73,97 +40,121 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
   
-  // Handle form submission
-  uploadForm.addEventListener('submit', async (e) => {
-    e.preventDefault();
+  
+  // Load schematic queue
+  async function loadSchematicQueue() {
+    try {
+      const response = await fetch('/api/queue');
+      const data = await response.json();
+      
+      if (data.success) {
+        queue = data.files;
+        if (queue.length > 0) {
+          loadNextSchematic();
+        } else {
+          // If no schematics in queue, show upload form
+          document.querySelector('.upload-section').classList.remove('hidden');
+        }
+      } else {
+        console.error('Failed to load queue:', data.message);
+      }
+    } catch (error) {
+      console.error('Error loading schematic queue:', error);
+    }
+  }
+  
+  // Load next schematic in queue
+  async function loadNextSchematic() {
+    if (queue.length > 0) {
+      currentSchematic = queue.shift();
+      currentSchematicName.textContent = currentSchematic.name;
+      
+      // Show annotation section and make sure viewer is visible
+      annotationSection.classList.remove('hidden');
+      viewerContainer.classList.remove('hidden');
+      annotationText.value = '';
+      
+      // Load and visualize the schematic from server
+      try {
+        // Show loading indicator
+        loadingIndicator.style.display = 'block';
+        loadingIndicator.textContent = 'Loading schematic...';
+        
+        // Process the schematic file on the server
+        const processResponse = await fetch(`/api/process-queue-file`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ filename: currentSchematic.name })
+        });
+        
+        const processData = await processResponse.json();
+        
+        if (processData.success) {
+          // Display schematic info
+          schematicInfo.innerHTML = `
+            <p>Dimensions: ${processData.dimensions.width}x${processData.dimensions.height}x${processData.dimensions.length}</p>
+            <p>Format: ${processData.format}</p>
+          `;
+          
+          // Update loading indicator
+          loadingIndicator.textContent = 'Rendering schematic...';
+          
+          // Load the schematic
+          const loadSuccess = await viewer.loadSchematic(processData.schematicId);
+          
+          if (!loadSuccess) {
+            showError('Failed to render schematic.');
+          } else {
+            // Hide loading indicator
+            loadingIndicator.style.display = 'none';
+          }
+        } else {
+          showError(processData.message || 'Failed to process schematic.');
+        }
+      } catch (error) {
+        console.error('Error loading schematic:', error);
+        showError('Error loading schematic: ' + error.message);
+      }
+    } else {
+      // No more schematics in queue
+      annotationSection.innerHTML = '<p>All schematics have been annotated!</p>';
+      viewerContainer.classList.add('hidden');
+    }
+  }
+  
+  // Save annotation
+  saveAnnotationButton.addEventListener('click', async () => {
+    if (!currentSchematic) return;
     
-    if (!fileInput.files.length) {
+    const annotation = annotationText.value.trim();
+    if (!annotation) {
+      alert('Please enter an annotation before saving.');
       return;
     }
-    
-    // Clear any previous errors
-    clearError();
-    
-    // Show loading indicator
-    viewerContainer.classList.remove('hidden');
-    loadingIndicator.style.display = 'block';
-    loadingIndicator.textContent = 'Uploading schematic...';
-    
-    // Validate file type
-    const file = fileInput.files[0];
-    const fileExt = file.name.split('.').pop().toLowerCase();
-    const supportedFormats = ['schematic', 'schem', 'nbt', 'litematic'];
-    
-    if (!supportedFormats.includes(fileExt)) {
-      showError(`Unsupported file format: .${fileExt}. Supported formats are: .schematic, .schem, .nbt, and .litematic`);
-      return;
-    }
-    
-    // Create form data
-    const formData = new FormData();
-    formData.append('schematic', file);
     
     try {
-      console.log('Uploading file...');
-      const startTime = performance.now();
-      
-      // Upload the file
-      const response = await fetch('/api/upload', {
+      const response = await fetch(`/api/annotate/${currentSchematic.nameWithoutExt}`, {
         method: 'POST',
-        body: formData
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ annotation })
       });
       
       const data = await response.json();
-      console.log('Server response:', data);
-      
-      const uploadTime = ((performance.now() - startTime) / 1000).toFixed(2);
-      console.log(`Upload and processing took ${uploadTime} seconds`);
       
       if (data.success) {
-        // Clear any previous errors
-        clearError();
-        
-        // Display schematic info
-        schematicInfo.innerHTML = `
-          <p>Dimensions: ${data.dimensions.width}x${data.dimensions.height}x${data.dimensions.length}</p>
-          <p>Format: ${data.format}</p>
-        `;
-        
-        // Update loading indicator
-        loadingIndicator.textContent = 'Rendering schematic...';
-        
-        try {
-          // Wait a brief moment to ensure the UI updates
-          setTimeout(async () => {
-            // Load the schematic
-            const loadSuccess = await viewer.loadSchematic(data.schematicId);
-            
-            if (!loadSuccess) {
-              showError('Failed to render schematic. The file may be corrupted or in an unsupported format.');
-            } else {
-              // Hide loading indicator
-              loadingIndicator.style.display = 'none';
-              
-              // Display total time
-              const totalTime = ((performance.now() - startTime) / 1000).toFixed(2);
-              console.log(`Total processing time: ${totalTime} seconds`);
-              const timeInfo = document.createElement('p');
-              timeInfo.textContent = `Processing time: ${totalTime}s`;
-              timeInfo.style.fontSize = '0.8em';
-              timeInfo.style.opacity = '0.7';
-              schematicInfo.appendChild(timeInfo);
-            }
-          }, 100);
-        } catch (renderError) {
-          console.error('Rendering error:', renderError);
-          showError(`Error rendering schematic: ${renderError.message}`);
-        }
+        // Load next schematic
+        loadNextSchematic();
       } else {
-        showError(data.message || 'Failed to process schematic. The file may be corrupted or in an unsupported format.');
+        console.error('Failed to save annotation:', data.message);
+        alert('Failed to save annotation. Please try again.');
       }
     } catch (error) {
-      console.error('Error uploading schematic:', error);
-      showError(`Upload failed: ${error.message}. Please check your connection and try again.`);
+      console.error('Error saving annotation:', error);
+      alert('Error saving annotation. Please try again.');
     }
   });
   
@@ -200,4 +191,7 @@ document.addEventListener('DOMContentLoaded', () => {
     fullscreenButton.addEventListener('click', toggleFullscreen);
     controlGroup.appendChild(fullscreenButton);
   }
+  
+  // Load schematic queue when page loads
+  loadSchematicQueue();
 });

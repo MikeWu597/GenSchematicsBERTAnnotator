@@ -12,19 +12,19 @@
       <h1>Minecraft Schematic Viewer</h1>
     </header>
     
-    <div class="upload-section">
-      <form id="upload-form">
-        <div class="drop-area" id="drop-area">
-          <p>Drag & drop your schematic file here</p>
-          <p>or</p>
-          <label for="file-input" class="file-input-label">Choose File</label>
-          <input type="file" id="file-input" accept=".schematic" hidden>
-        </div>
-        <button type="submit" id="upload-button" disabled>Upload & Visualize</button>
-      </form>
+    <div id="annotation-section" class="annotation-section">
+      <h2>Schematic Annotation</h2>
+      <div class="schematic-info">
+        <p>Current schematic: <span id="current-schematic-name"></span></p>
+      </div>
+      <div class="annotation-input">
+        <label for="annotation-text">Please describe this schematic:</label>
+        <textarea id="annotation-text" placeholder="Enter your description of this schematic here..."></textarea>
+        <button id="save-annotation">Save Annotation</button>
+      </div>
     </div>
     
-    <div id="viewer-container" class="viewer-container hidden">
+    <div id="viewer-container" class="viewer-container">
       <div id="loading-indicator">Loading schematic...</div>
       <div id="schematic-info"></div>
       <div id="renderer-container"></div>
