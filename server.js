@@ -36,10 +36,10 @@ const upload = multer({ storage });
 app.post('/api/upload', upload.single('schematic'), async (req, res) => {
   try {
     const filePath = req.file.path;
-    console.log(`Processing file: ${filePath}`);
+    console.log(`正在处理文件: ${filePath}`);
     
     // 处理schematic文件
-    console.log(`Processing queue file: ${filePath}`);
+    console.log(`处理队列文件: ${filePath}`);
     const schematicData = await processSchematic(filePath);
     
     // 存储处理后的数据（或引用）以供后续检索
@@ -63,17 +63,17 @@ app.post('/api/upload', upload.single('schematic'), async (req, res) => {
     
     res.json({ 
       success: true, 
-      message: 'Schematic uploaded successfully',
+      message: '原理图上传成功',
       schematicId,
       dimensions: schematicData.dimensions,
       format: schematicData.format
     });
   } catch (error) {
-    console.error('Error processing schematic:', error);
+    console.error('处理原理图时出错:', error);
     // Send more detailed error information
     res.status(500).json({ 
       success: false, 
-      message: `Failed to process schematic: ${error.message}`,
+      message: `处理原理图失败: ${error.message}`,
       stack: process.env.NODE_ENV === 'development' ? error.stack : undefined 
     });
   }
@@ -103,10 +103,10 @@ app.get('/api/queue', (req, res) => {
     
     res.json({ success: true, files });
   } catch (error) {
-    console.error('Error reading queue:', error);
+    console.error('读取队列时出错:', error);
     res.status(500).json({ 
       success: false, 
-      message: `Failed to read queue: ${error.message}`
+      message: `读取队列失败: ${error.message}`
     });
   }
 });
@@ -159,13 +159,13 @@ app.post('/api/process-queue-file', async (req, res) => {
     
     res.json({ 
       success: true, 
-      message: 'Schematic processed successfully',
+      message: '原理图处理成功',
       schematicId,
       dimensions: schematicData.dimensions,
       format: schematicData.format
     });
   } catch (error) {
-    console.error('Error processing queue schematic:', error);
+    console.error('处理队列中的原理图时出错:', error);
     res.status(500).json({ 
       success: false, 
       message: `Failed to process schematic: ${error.message}`
@@ -185,12 +185,34 @@ app.post('/api/annotate/:schematicName', (req, res) => {
     // Save annotation to file
     fs.writeFileSync(txtFilePath, annotation);
     
-    res.json({ success: true, message: 'Annotation saved successfully' });
+    res.json({ success: true, message: '标注保存成功' });
   } catch (error) {
-    console.error('Error saving annotation:', error);
+    console.error('保存标注时出错:', error);
     res.status(500).json({ 
       success: false, 
-      message: `Failed to save annotation: ${error.message}`
+      message: `保存标注失败: ${error.message}`
+    });
+  }
+});
+
+// API endpoint to invalidate a schematic
+app.post('/api/invalidate/:schematicName', (req, res) => {
+  try {
+    const { schematicName } = req.params;
+    
+    const queueDir = 'public/queue';
+    const schematicFilePath = path.join(queueDir, `${schematicName}.schematic`);
+    const invalidFilePath = path.join(queueDir, `${schematicName}.invalid`);
+    
+    // Rename the file to .invalid extension
+    fs.renameSync(schematicFilePath, invalidFilePath);
+    
+    res.json({ success: true, message: '原理图已作废' });
+  } catch (error) {
+    console.error('作废原理图时出错:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: `作废原理图失败: ${error.message}`
     });
   }
 });
@@ -207,17 +229,17 @@ async function processSchematic(filePath) {
     
     if (fileExt === '.schematic') {
       // Classic MCEdit schematic format
-      console.log('Parsing as MCEdit schematic');
+      console.log('正在解析MCEdit格式原理图');
       const parseResult = await nbt.parse(fileBuffer);
       parsed = parseResult.parsed;
       
-      console.log('NBT parsing successful');
+      console.log('NBT解析成功');
       
       // Debug information
-      if (parsed.value.size.value.value[0]) console.log(`Width: ${parsed.value.size.value.value[0]}`);
-      if (parsed.value.size.value.value[1]) console.log(`Height: ${parsed.value.size.value.value[1]}`);
-      if (parsed.value.size.value.value[2]) console.log(`Length: ${parsed.value.size.value.value[2]}`);
-      if (parsed.Blocks) console.log(`Has blocks data: ${parsed.Blocks.value.length} blocks`);
+      if (parsed.value.size.value.value[0]) console.log(`宽度: ${parsed.value.size.value.value[0]}`);
+      if (parsed.value.size.value.value[1]) console.log(`高度: ${parsed.value.size.value.value[1]}`);
+      if (parsed.value.size.value.value[2]) console.log(`长度: ${parsed.value.size.value.value[2]}`);
+      if (parsed.Blocks) console.log(`包含方块数据: ${parsed.Blocks.value.length} 个方块`);
       
       return {
         format: 'schematic',
@@ -229,24 +251,24 @@ async function processSchematic(filePath) {
         blocks: parseClassicSchematic(parsed)
       };
     } else {
-      throw new Error(`Unsupported schematic format: ${fileExt}`);
+      throw new Error(`不支持的原理图格式: ${fileExt}`);
     }
   } catch (error) {
-    console.error('Processing error:', error);
+    console.error('处理错误:', error);
     throw error; // Re-throw to be caught by the upload handler
   }
 }
 
 // Start the server
 app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+  console.log(`服务器正在端口 ${PORT} 上运行`);
   
   // Create required directories if they don't exist
   const requiredDirs = ['uploads', 'public/schematics', 'public/textures', 'public/queue'];
   for (const dir of requiredDirs) {
     if (!fs.existsSync(dir)) {
       fs.mkdirSync(dir, { recursive: true });
-      console.log(`Created directory: ${dir}`);
+      console.log(`已创建目录: ${dir}`);
     }
   }
 });

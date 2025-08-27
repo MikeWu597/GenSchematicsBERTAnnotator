@@ -6,6 +6,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const currentSchematicName = document.getElementById('current-schematic-name');
   const annotationText = document.getElementById('annotation-text');
   const saveAnnotationButton = document.getElementById('save-annotation');
+  const invalidateSchematicButton = document.getElementById('invalidate-schematic');
   
   let viewer;
   let queue = [];
@@ -93,10 +94,10 @@ document.addEventListener('DOMContentLoaded', () => {
         
         if (processData.success) {
           // Display schematic info
-          schematicInfo.innerHTML = `
-            <p>Dimensions: ${processData.dimensions.width}x${processData.dimensions.height}x${processData.dimensions.length}</p>
-            <p>Format: ${processData.format}</p>
-          `;
+          // schematicInfo.innerHTML = `
+          //   <p>Dimensions: ${processData.dimensions.width}x${processData.dimensions.height}x${processData.dimensions.length}</p>
+          //   <p>Format: ${processData.format}</p>
+          // `;
           
           // Update loading indicator
           loadingIndicator.textContent = 'Rendering schematic...';
@@ -119,7 +120,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     } else {
       // No more schematics in queue
-      annotationSection.innerHTML = '<p>All schematics have been annotated!</p>';
+      annotationSection.innerHTML = '<p>所有原理图都已标注完成！</p>';
       viewerContainer.classList.add('hidden');
     }
   }
@@ -130,7 +131,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
     const annotation = annotationText.value.trim();
     if (!annotation) {
-      alert('Please enter an annotation before saving.');
+      alert('保存前请输入标注内容。');
       return;
     }
     
@@ -149,12 +150,43 @@ document.addEventListener('DOMContentLoaded', () => {
         // Load next schematic
         loadNextSchematic();
       } else {
-        console.error('Failed to save annotation:', data.message);
-        alert('Failed to save annotation. Please try again.');
+        console.error('保存标注失败:', data.message);
+        alert('保存标注失败，请重试。');
       }
     } catch (error) {
-      console.error('Error saving annotation:', error);
-      alert('Error saving annotation. Please try again.');
+      console.error('保存标注时出错:', error);
+      alert('保存标注时出错，请重试。');
+    }
+  });
+  
+  // Invalidate schematic
+  invalidateSchematicButton.addEventListener('click', async () => {
+    if (!currentSchematic) return;
+    
+    if (!confirm('确定要作废此原理图吗？作废后将无法恢复。')) {
+      return;
+    }
+    
+    try {
+      const response = await fetch(`/api/invalidate/${currentSchematic.nameWithoutExt}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        // Load next schematic
+        loadNextSchematic();
+      } else {
+        console.error('作废原理图失败:', data.message);
+        alert('作废原理图失败，请重试。');
+      }
+    } catch (error) {
+      console.error('作废原理图时出错:', error);
+      alert('作废原理图时出错，请重试。');
     }
   });
   
@@ -177,7 +209,7 @@ document.addEventListener('DOMContentLoaded', () => {
       document.exitFullscreen();
     } else {
       viewerContainer.requestFullscreen().catch(err => {
-        console.error(`Error attempting to enable fullscreen: ${err.message}`);
+        console.error(`启用全屏时出错: ${err.message}`);
       });
     }
   }
@@ -187,7 +219,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const controlGroup = document.querySelector('.control-group');
     const fullscreenButton = document.createElement('button');
     fullscreenButton.id = 'toggle-fullscreen';
-    fullscreenButton.textContent = 'Fullscreen';
+    fullscreenButton.textContent = '全屏';
     fullscreenButton.addEventListener('click', toggleFullscreen);
     controlGroup.appendChild(fullscreenButton);
   }

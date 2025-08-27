@@ -1,45 +1,52 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Minecraft Schematic Viewer</title>
+  <title>Minecraft 原理图标注器</title>
   <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
   <div class="container">
-    <header>
-      <h1>Minecraft Schematic Viewer</h1>
-    </header>
     
     <div id="annotation-section" class="annotation-section">
-      <h2>Schematic Annotation</h2>
       <div class="schematic-info">
-        <p>Current schematic: <span id="current-schematic-name"></span></p>
+        <p>当前原理图: <span id="current-schematic-name"></span></p>
       </div>
       <div class="annotation-input">
-        <label for="annotation-text">Please describe this schematic:</label>
-        <textarea id="annotation-text" placeholder="Enter your description of this schematic here..."></textarea>
-        <button id="save-annotation">Save Annotation</button>
+        <input type="text" id="annotation-text" placeholder="一坨屎">
+        <div class="button-group">
+          <button id="save-annotation">保存标注</button>
+          <button id="invalidate-schematic" class="danger">作废此图</button>
+        </div>
       </div>
     </div>
     
     <div id="viewer-container" class="viewer-container">
-      <div id="loading-indicator">Loading schematic...</div>
-      <div id="schematic-info"></div>
+      <div id="loading-indicator">正在加载原理图...</div>
       <div id="renderer-container"></div>
       <div class="controls">
         <div class="control-group">
-          <button id="reset-view">Reset View</button>
-          <button id="toggle-wireframe">Toggle Wireframe</button>
-          <button id="toggle-textures">Toggle Textures</button>
+          <button id="reset-view">重置视角</button>
+          <button id="toggle-wireframe">切换线框</button>
+          <button id="toggle-textures">切换纹理</button>
         </div>
         <div class="control-group">
-          <label for="layer-slider">Layer: <span id="layer-value">All</span></label>
+          <label for="layer-slider">层级: <span id="layer-value">全部</span></label>
           <input type="range" id="layer-slider" min="0" max="0" value="0">
+          
         </div>
+        
       </div>
     </div>
+    
+    <p id="schematic-info">不要填写含具体材料的说明，如橡木、樱花木，但可以说“木”，石头同理</p>
+    <p id="schematic-info">不要包括对具体结构的指定性说明，如“有一个避雷针的小屋”，但可以说“有一个烟囱的小屋”，因为避雷针是具体方块</p>
+    <p id="schematic-info">不要填写前置语，如“生成一个...”</p>
+    <p id="schematic-info">量词、介词的使用不构成影响，如“的”与“之”可以任选</p>
+    <p id="schematic-info">只需要填写定语名词词组，如“一座小型木屋”、“三层谷仓”、“高耸的塔楼”</p>
+    <p id="schematic-info">内容过小（只有几格）或过于抽象看不出来无法描述时，选择作废原理图</p>
+    <p id="schematic-info">程序无法显示楼梯，看到空空的屋顶的时候，自行想象一下</p>
   </div>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
