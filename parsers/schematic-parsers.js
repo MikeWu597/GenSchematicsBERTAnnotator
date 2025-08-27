@@ -6,22 +6,18 @@ function parseClassicSchematic(parsed) {
   try {
     console.log("Starting Classic Schematic parsing");
 
-    if (!parsed.Width || !parsed.Height || !parsed.Length || !parsed.Blocks) {
+    if (!parsed.value.size.value.value[0] || !parsed.value.size.value.value[1] || !parsed.value.size.value.value[2]) {
       throw new Error("Missing required NBT tags in schematic file");
     }
 
-    const width = parsed.Width.value;
-    const height = parsed.Height.value;
-    const length = parsed.Length.value;
+    const width = parsed.value.size.value.value[0];
+    const height = parsed.value.size.value.value[1];
+    const length = parsed.value.size.value.value[2];
 
     console.log(`Dimensions: ${width}x${height}x${length}`);
 
-    // Get block IDs and data values
-    const blockIds = parsed.Blocks.value;
-    const blockData = parsed.Data
-      ? parsed.Data.value
-      : new Array(blockIds.length).fill(0);
-
+    // Get block IDs
+    const blockIds = parsed.value.blocks.value.value;
     console.log(
       `Block data length: ${blockIds.length}, expected: ${
         width * height * length
@@ -37,9 +33,9 @@ function parseClassicSchematic(parsed) {
     }
 
     // Get block mapping if available (from newer formats)
-    const blockMapping = parsed.BlockStates
-      ? mapBlockStates(parsed.BlockStates.value)
-      : null;
+    const blockMapping = parsed.value.palette.value.value
+      ? parsed.value.palette.value.value
+      : new Array(blockIds.length).fill(0);
 
     const blocks = [];
     let airBlocks = 0;
@@ -56,7 +52,7 @@ function parseClassicSchematic(parsed) {
           }
 
           const blockId = blockIds[index];
-          const dataValue = index < blockData.length ? blockData[index] : 0;
+          const state = blockId.state.value;
 
           // Skip air blocks for efficiency
           if (blockId === 0) {
@@ -67,12 +63,12 @@ function parseClassicSchematic(parsed) {
           // Get block name from mapping or use legacy ID
           let blockName;
           try {
-            if (blockMapping && blockMapping[blockId]) {
+            if (blockMapping && blockMapping[state]) {
+              // console.log(JSON.stringify(blockMapping[state]));
               blockName =
-                blockMapping[blockId][dataValue] ||
-                `minecraft:unknown_${blockId}_${dataValue}`;
+                blockMapping[state].Name.value;
             } else {
-              blockName = getLegacyBlockName(blockId, dataValue);
+              blockName = getLegacyBlockName(blockId, 0);
             }
 
             blocks.push({

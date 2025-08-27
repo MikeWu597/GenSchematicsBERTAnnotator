@@ -9,11 +9,8 @@ const cors = require('cors');
 // Import format-specific parsers
 const { 
   parseClassicSchematic, 
-  parseWorldEditSchematic 
 } = require('./parsers/schematic-parsers');
 
-// Import specialized litematica parser
-const { parseLitematicFile } = require('./parsers/litematica-parser');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -99,57 +96,19 @@ async function processSchematic(filePath) {
       console.log('NBT parsing successful');
       
       // Debug information
-      if (parsed.Width) console.log(`Width: ${parsed.Width.value}`);
-      if (parsed.Height) console.log(`Height: ${parsed.Height.value}`);
-      if (parsed.Length) console.log(`Length: ${parsed.Length.value}`);
+      if (parsed.value.size.value.value[0]) console.log(`Width: ${parsed.value.size.value.value[0]}`);
+      if (parsed.value.size.value.value[1]) console.log(`Height: ${parsed.value.size.value.value[1]}`);
+      if (parsed.value.size.value.value[2]) console.log(`Length: ${parsed.value.size.value.value[2]}`);
       if (parsed.Blocks) console.log(`Has blocks data: ${parsed.Blocks.value.length} blocks`);
       
       return {
         format: 'schematic',
         dimensions: {
-          width: parsed.Width.value,
-          height: parsed.Height.value,
-          length: parsed.Length.value
+          width: parsed.value.size.value.value[0],
+          height: parsed.value.size.value.value[1],
+          length: parsed.value.size.value.value[2]
         },
         blocks: parseClassicSchematic(parsed)
-      };
-    } else if (fileExt === '.nbt' || fileExt === '.litematic') {
-      // Litematica format - use specialized parser
-      console.log('Parsing as Litematica format');
-      
-      // Use the specialized litematica parser
-      const { dimensions, blocks } = await parseLitematicFile(filePath);
-      
-      return {
-        format: 'litematic',
-        dimensions,
-        blocks
-      };
-    } else if (fileExt === '.schem') {
-      // WorldEdit schematic format
-      console.log('Parsing as WorldEdit schem format');
-      // Some .schem files may be compressed with gzip
-      let dataBuffer;
-      try {
-        dataBuffer = zlib.gunzipSync(fileBuffer);
-        console.log('Decompressed with gzip');
-      } catch (e) {
-        // If decompression fails, try without it
-        console.log('Gzip decompression failed, trying direct parse');
-        dataBuffer = fileBuffer;
-      }
-      
-      const parseResult = await nbt.parse(dataBuffer);
-      parsed = parseResult.parsed;
-      
-      return {
-        format: 'schem',
-        dimensions: {
-          width: parsed.Width.value,
-          height: parsed.Height.value,
-          length: parsed.Length.value
-        },
-        blocks: parseWorldEditSchematic(parsed)
       };
     } else {
       throw new Error(`Unsupported schematic format: ${fileExt}`);
