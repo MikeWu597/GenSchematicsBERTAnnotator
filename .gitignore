@@ -36,6 +36,7 @@ build/
 # Keep the directories but ignore the actual texture files
 public/textures/blocks/*.png
 public/textures/blocks/*.jpg
+public/textures/blocks/*.mcmeta
 public/textures/atlas.png
 
 # Keep these files even if patterns above would ignore them
